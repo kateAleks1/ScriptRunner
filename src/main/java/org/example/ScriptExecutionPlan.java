@@ -2,22 +2,18 @@ package org.example;
 
 import java.util.*;
 
+import java.util.*;
+
 public class ScriptExecutionPlan {
-    public static void main(String[] args) {
-
-        List<VulnerabilityScript> scripts = List.of(
-                new VulnerabilityScript(1, List.of(2, 3)),
-                new VulnerabilityScript(2, List.of(4)),
-                new VulnerabilityScript(3, List.of(4, 5)),
-                new VulnerabilityScript(4, List.of()),
-                new VulnerabilityScript(5, List.of())
-        );
-
-        List<Integer> executionOrder = getExecutionPlan(scripts);
-        System.out.println("Execution Order: " + executionOrder);
-    }
 
     public static List<Integer> getExecutionPlan(List<VulnerabilityScript> scripts) {
+
+        Set<Integer> scriptIds = new HashSet<>();
+        for (VulnerabilityScript script : scripts) {
+            if (!scriptIds.add(script.getScriptId())) {
+                throw new IllegalArgumentException("Duplicate script IDs detected: " + script.getScriptId());
+            }
+        }
 
         Map<Integer, List<Integer>> graph = new HashMap<>();
         Map<Integer, Integer> inDegree = new HashMap<>();
@@ -27,12 +23,13 @@ public class ScriptExecutionPlan {
             inDegree.putIfAbsent(script.getScriptId(), 0);
 
             for (int dependency : script.getDependencies()) {
-                graph.computeIfAbsent(dependency, k -> new ArrayList<>());
+                if (!scriptIds.contains(dependency)) {
+                    throw new IllegalArgumentException("Dependency " + dependency + " does not exist for script " + script.getScriptId());
+                }
                 graph.get(dependency).add(script.getScriptId());
                 inDegree.put(script.getScriptId(), inDegree.getOrDefault(script.getScriptId(), 0) + 1);
             }
         }
-
 
         Queue<Integer> queue = new LinkedList<>();
         for (Map.Entry<Integer, Integer> entry : inDegree.entrySet()) {
@@ -54,13 +51,24 @@ public class ScriptExecutionPlan {
             }
         }
 
-        if (executionOrder.size() != graph.size()) {
-            throw new IllegalStateException("Graph contains cycles!");
+
+        if (executionOrder.size() != scripts.size()) {
+            throw new IllegalStateException("Graph contains cycles! Starting node: " + findCycleStart(graph, inDegree));
         }
 
         return executionOrder;
     }
+
+    private static int findCycleStart(Map<Integer, List<Integer>> graph, Map<Integer, Integer> inDegree) {
+        for (Map.Entry<Integer, Integer> entry : inDegree.entrySet()) {
+            if (entry.getValue() > 0) {
+                return entry.getKey();
+            }
+        }
+        return -1;
+    }
 }
+
 
 class VulnerabilityScript {
     private final int scriptId;
